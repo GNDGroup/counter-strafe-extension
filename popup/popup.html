@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CounterStrafe Analytics</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <div class="popup">
+    <!-- Header -->
+    <div class="header">
+      <div class="logo">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="#3b82f6">
+          <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+        </svg>
+        <span class="logo-text">CounterStrafe</span>
+      </div>
+    </div>
+
+    <!-- Auth status -->
+    <div class="section" id="auth-section">
+      <div id="auth-loading" class="status-row">
+        <div class="spinner"></div>
+        <span class="status-text">Проверяем авторизацию…</span>
+      </div>
+      <div id="auth-ok" class="status-row hidden">
+        <img id="auth-avatar" class="auth-avatar hidden" alt="" />
+        <span class="dot dot-green" id="auth-dot"></span>
+        <span class="status-text" id="auth-name">Подключён</span>
+      </div>
+      <div id="auth-fail" class="status-row hidden">
+        <span class="dot dot-red"></span>
+        <span class="status-text">Не авторизован</span>
+      </div>
+    </div>
+
+    <!-- Panel toggle -->
+    <div class="section">
+      <label class="toggle-row">
+        <span class="toggle-label">Показывать панель на FACEIT</span>
+        <input type="checkbox" id="panel-toggle" class="toggle-input" />
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+
+    <!-- Tab status -->
+    <div class="section" id="tab-section">
+      <div id="tab-loading" class="status-row">
+        <div class="spinner"></div>
+        <span class="status-text">Проверяем вкладку…</span>
+      </div>
+      <div id="tab-faceit" class="status-row hidden">
+        <span class="dot dot-green"></span>
+        <span class="status-text">Активна на FACEIT</span>
+      </div>
+      <div id="tab-other" class="status-row hidden">
+        <span class="dot dot-gray"></span>
+        <span class="status-text">Откройте матч на FACEIT</span>
+      </div>
+    </div>
+
+    <!-- Links -->
+    <div class="section links-section">
+      <a href="https://counterstrafe.pro" target="_blank" rel="noopener" class="link-btn" id="cs-link">
+        Открыть CounterStrafe
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/>
+        </svg>
+      </a>
+      <a href="https://counterstrafe.pro/api/v1/auth/faceit" target="_blank" rel="noopener" class="link-btn link-btn-secondary hidden" id="login-link">
+        Войти через FACEIT
+      </a>
+    </div>
+
+    <div class="version">v1.0.0</div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>
