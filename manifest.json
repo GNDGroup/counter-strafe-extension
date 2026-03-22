@@ -1,0 +1,46 @@
+{
+  "manifest_version": 3,
+  "name": "CounterStrafe Analytics",
+  "version": "1.0.0",
+  "description": "Pre-match player analytics from CounterStrafe on FACEIT match rooms",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "cookies"
+  ],
+  "host_permissions": [
+    "https://www.faceit.com/*",
+    "https://counterstrafe.pro/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.faceit.com/*/room/*",
+        "https://www.faceit.com/*/csgo/room/*",
+        "https://www.faceit.com/*/cs2/room/*",
+        "https://www.faceit.com/*/match/*",
+        "https://www.faceit.com/*/csgo/match/*",
+        "https://www.faceit.com/*/cs2/match/*"
+      ],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

@@ -1,0 +1,493 @@
+/* CounterStrafe Analytics — Injected Panel Styles */
+
+#cs-analytics-panel {
+  position: fixed;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2147483647;
+  width: 760px;
+  max-width: calc(100vw - 32px);
+  display: flex;
+  flex-direction: column;
+  background: rgba(13, 17, 23, 0.97);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(59,130,246,0.08);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 13px;
+  color: #f8fafc;
+  backdrop-filter: blur(12px);
+  transition: transform 200ms ease, opacity 200ms ease;
+}
+
+/* Collapsed — only header */
+#cs-analytics-panel[data-collapsed="1"] .cs-panel-body {
+  display: none;
+}
+#cs-analytics-panel[data-collapsed="1"] .cs-toggle-btn svg {
+  transform: rotate(180deg);
+}
+
+/* Header */
+.cs-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  background: rgba(59, 130, 246, 0.06);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 14px 14px 0 0;
+  flex-shrink: 0;
+}
+
+.cs-panel-logo {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: #94a3b8;
+  text-transform: uppercase;
+}
+
+.cs-toggle-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  border-radius: 4px;
+  transition: color 150ms ease, background 150ms ease;
+}
+.cs-toggle-btn:hover {
+  color: #f8fafc;
+  background: rgba(255, 255, 255, 0.08);
+}
+.cs-toggle-btn svg {
+  transition: transform 200ms ease;
+}
+
+/* Panel body — horizontal layout */
+.cs-panel-body {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  overflow: hidden;
+  max-height: 320px;
+}
+
+/* Team columns */
+.cs-team {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 8px 0;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.08) transparent;
+}
+.cs-team::-webkit-scrollbar { width: 3px; }
+.cs-team::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+.cs-team-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px 6px;
+}
+.cs-team-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.cs-side-ct-dot { background: #5a9fd4; }
+.cs-side-t-dot  { background: #fcbf49; }
+
+.cs-team-name {
+  font-weight: 700;
+  font-size: 12px;
+  color: #e2e8f0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cs-my-team-badge {
+  font-size: 9px;
+  font-weight: 700;
+  color: #3b82f6;
+  border: 1px solid rgba(59,130,246,0.4);
+  background: rgba(59,130,246,0.1);
+  padding: 1px 5px;
+  border-radius: 4px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Player rows */
+.cs-player-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 10px;
+  border-radius: 5px;
+  margin: 1px 4px;
+  transition: background 150ms ease;
+  cursor: default;
+}
+.cs-player-row:hover { background: rgba(255,255,255,0.05); }
+
+.cs-side-ct { border-left: 2px solid rgba(90,159,212,0.35); }
+.cs-side-t  { border-left: 2px solid rgba(252,191,73,0.35); }
+
+.cs-player-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: #263144;
+}
+
+.cs-player-info { flex: 1; min-width: 0; }
+
+.cs-player-nick {
+  font-weight: 600;
+  font-size: 12px;
+  color: #f1f5f9;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cs-player-stats {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 1px;
+}
+
+.cs-elo { font-size: 11px; font-weight: 700; color: #3b82f6; }
+.cs-skill-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.cs-stat { font-size: 10px; color: #94a3b8; }
+.cs-stat-wr { color: #10b981; }
+
+/* Center divider between teams */
+.cs-col-divider {
+  width: 1px;
+  background: rgba(255,255,255,0.07);
+  flex-shrink: 0;
+  margin: 8px 0;
+}
+
+/* Map label */
+.cs-map-label {
+  display: none; /* shown in map section instead */
+}
+
+/* Divider between sections */
+.cs-divider { display: none; }
+
+/* ── Map pool center column ── */
+.cs-map-col {
+  width: 220px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 6px 0 8px;
+  border-left: 1px solid rgba(255,255,255,0.07);
+  border-right: 1px solid rgba(255,255,255,0.07);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.08) transparent;
+}
+.cs-map-col::-webkit-scrollbar { width: 3px; }
+.cs-map-col::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+/* Section label */
+.cs-section-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: #475569;
+  text-transform: uppercase;
+  padding: 0 10px 4px;
+}
+
+/* Map header */
+.cs-map-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px 4px;
+  font-size: 9px;
+  font-weight: 600;
+}
+.cs-map-header-team { color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 68px; }
+.cs-map-header-vs { color: #334155; font-size: 9px; flex-shrink: 0; }
+
+/* Map rows */
+.cs-map-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 4px;
+  margin: 0 3px;
+  transition: background 150ms ease;
+}
+.cs-map-row:hover { background: rgba(255,255,255,0.04); }
+.cs-map-row--pik {
+  background: rgba(16, 185, 129, 0.07);
+  border-left: 2px solid rgba(16, 185, 129, 0.55);
+  padding-left: 8px;
+}
+.cs-map-row--ban {
+  background: rgba(244, 63, 94, 0.07);
+  border-left: 2px solid rgba(244, 63, 94, 0.45);
+  padding-left: 8px;
+}
+
+.cs-map-row--banned {
+  opacity: 0.38;
+  pointer-events: none;
+}
+.cs-map-row--banned .cs-map-name {
+  text-decoration: line-through;
+  color: #334155;
+}
+
+/* cs-map-name-cell that spans full width (banned row without bars) */
+.cs-map-name-cell--full {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Badge for already-banned maps */
+.cs-map-badge--banned {
+  font-size: 8px;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 3px;
+  color: #475569;
+  border: 1px solid rgba(71,85,105,0.35);
+  background: transparent;
+  white-space: nowrap;
+}
+
+/* ── FACEIT map card overlays ────────────────────────────────────────────── */
+
+/* Coloured outline on FACEIT's own map card elements */
+[data-cs-veto="good"]    { outline: 2px solid #10b981 !important; outline-offset: 2px !important; border-radius: 4px; }
+[data-cs-veto="likely"]  { outline: 2px solid #06b6d4 !important; outline-offset: 2px !important; border-radius: 4px; }
+[data-cs-veto="bad"]     { outline: 2px solid #f43f5e !important; outline-offset: 2px !important; border-radius: 4px; }
+[data-cs-veto="weak"]    { outline: 2px solid #f59e0b !important; outline-offset: 2px !important; border-radius: 4px; }
+[data-cs-veto="banned"]  { opacity: 0.45 !important; filter: grayscale(0.5) !important; }
+
+/* Floating badge rendered directly in body, positioned over the card */
+.cs-veto-badge {
+  position: fixed;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 9px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 10px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  pointer-events: none;
+  z-index: 2147483646;
+  white-space: nowrap;
+  transform: translateX(-50%);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+}
+.cs-veto-badge--good   { background: #10b981; color: #fff; }
+.cs-veto-badge--likely { background: #06b6d4; color: #fff; }
+.cs-veto-badge--bad    { background: #f43f5e; color: #fff; }
+.cs-veto-badge--weak   { background: #f59e0b; color: #0f172a; }
+
+/* Live veto indicator dot */
+.cs-live-dot {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #10b981;
+  margin-left: 4px;
+  vertical-align: middle;
+  animation: cs-pulse 1.5s ease-in-out infinite;
+}
+.cs-map-row--pick {
+  background: rgba(59,130,246,0.07);
+  border-left: 2px solid rgba(59,130,246,0.4);
+  padding-left: 8px;
+}
+
+.cs-map-name-cell {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  width: 56px;
+  flex-shrink: 0;
+}
+.cs-map-name {
+  font-size: 10px;
+  font-weight: 700;
+  color: #cbd5e1;
+  letter-spacing: 0.03em;
+}
+.cs-map-row--banned .cs-map-name { color: #374151; }
+
+/* Map badges */
+.cs-map-badge {
+  font-size: 8px;
+  font-weight: 700;
+  padding: 1px 3px;
+  border-radius: 3px;
+  border: 1px solid;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.cs-map-badge--pick   { color: #3b82f6; border-color: rgba(59,130,246,0.5);  background: rgba(59,130,246,0.12); }
+.cs-map-badge--likely { color: #06b6d4; border-color: rgba(6,182,212,0.5);   background: rgba(6,182,212,0.10); }
+.cs-map-badge--good   { color: #10b981; border-color: rgba(16,185,129,0.5);  background: rgba(16,185,129,0.10); }
+.cs-map-badge--bad    { color: #f43f5e; border-color: rgba(244,63,94,0.4);   background: rgba(244,63,94,0.08); }
+.cs-map-badge--nodata { color: #475569; border-color: rgba(71,85,105,0.4);   background: transparent; }
+.cs-map-row--weak { opacity: 0.55; }
+
+/* Advantage bars */
+.cs-map-bars {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* Single centred advantage bar */
+.cs-adv-bar-wrap {
+  flex: 1;
+  height: 3px;
+  background: rgba(255,255,255,0.07);
+  border-radius: 2px;
+  overflow: hidden;
+  position: relative;
+}
+.cs-adv-bar {
+  height: 100%;
+  border-radius: 2px;
+  position: absolute;
+  top: 0;
+  transition: width 300ms ease;
+}
+.cs-adv-bar--pos { background: #3b82f6; left: 50%; }
+.cs-adv-bar--neg { background: #f43f5e; right: 50%; }
+
+.cs-map-wr-nums {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0;
+  flex-shrink: 0;
+  width: 36px;
+}
+.cs-map-wr { font-size: 9px; font-weight: 700; line-height: 1.2; }
+.cs-map-wr--us   { color: #3b82f6; }
+.cs-map-wr--them { color: #f43f5e; }
+.cs-map-wr--num  { color: #3b82f6; }
+.cs-map-wr--dim  { font-size: 8px; font-weight: 400; color: #475569; }
+
+/* Footer */
+.cs-footer {
+  display: flex;
+  justify-content: center;
+  padding: 6px 10px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+}
+.cs-link {
+  font-size: 11px;
+  color: #3b82f6;
+  text-decoration: none;
+  font-weight: 600;
+  transition: color 150ms ease;
+}
+.cs-link:hover { color: #60a5fa; }
+
+/* Error state */
+.cs-panel-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 20px 24px;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 12px;
+  line-height: 1.5;
+  width: 100%;
+}
+.cs-panel-error a { color: #3b82f6; text-decoration: none; font-weight: 600; }
+.cs-panel-error a:hover { text-decoration: underline; }
+
+/* Skeleton loader */
+.cs-panel-skeleton {
+  display: flex;
+  gap: 1px;
+  width: 100%;
+}
+.cs-skel-col {
+  flex: 1;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.cs-skel-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px;
+}
+.cs-skel-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.07);
+  animation: cs-pulse 1.5s ease-in-out infinite;
+  flex-shrink: 0;
+}
+.cs-skel-lines { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+.cs-skel-line {
+  height: 7px;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.07);
+  animation: cs-pulse 1.5s ease-in-out infinite;
+}
+.cs-skel-line-wide { width: 70%; }
+.cs-skel-line-narrow { width: 45%; animation-delay: 0.2s; }
+.cs-skel-center {
+  width: 200px;
+  flex-shrink: 0;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  border-left: 1px solid rgba(255,255,255,0.06);
+  border-right: 1px solid rgba(255,255,255,0.06);
+}
+.cs-skel-bar {
+  height: 14px;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.07);
+  animation: cs-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes cs-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
