@@ -28,8 +28,11 @@ async function fetchPrematch(matchID) {
     headers['Authorization'] = 'Bearer ' + token
   }
 
+  // Prematch can be slow on a cold load: backend fans out to FACEIT's API for
+  // each of 10 players, and Cloudflare-induced retries push it past 15s in the
+  // worst case. 30s leaves headroom while still failing fast on a dead backend.
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 10_000) // 10s timeout
+  const timeout = setTimeout(() => controller.abort(), 30_000)
   try {
     const resp = await fetch(`${API_BASE}/matches/${encodeURIComponent(matchID)}/prematch`, {
       headers,
@@ -38,13 +41,13 @@ async function fetchPrematch(matchID) {
     })
     clearTimeout(timeout)
     if (!resp.ok) {
-      return { error: `HTTP ${resp.status}` }
+      return { error: `HTTP ${resp.status}`, status: resp.status }
     }
     const data = await resp.json()
     return { data }
   } catch (err) {
     clearTimeout(timeout)
-    if (err.name === 'AbortError') return { error: 'Timeout' }
+    if (err.name === 'AbortError') return { error: 'Timeout', timeout: true }
     return { error: err.message || 'Network error' }
   }
 }

@@ -376,15 +376,22 @@
     `
   }
 
+  // FACEIT's CSP forbids inline event handlers (`script-src-attr 'none'`),
+  // so we cannot use onerror= directly in HTML. Instead emit a placeholder
+  // by default and let the error listener (attached after insert) swap it in
+  // when the real avatar fails or is missing.
+  const AVATAR_PLACEHOLDER = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'><rect width='32' height='32' fill='%23263144' rx='4'/><circle cx='16' cy='13' r='5' fill='%23475569'/><path d='M6 28c2-5 6-7 10-7s8 2 10 7v4H6z' fill='%23475569'/></svg>"
+
   function buildPlayerRow(player, side) {
     const lvl = Math.min(Math.max(parseInt(player.skill_level) || 1, 1), 10)
     const sideClass = side === 'faction1' ? 'cs-side-ct' : 'cs-side-t'
     const kdVal = fmtKD(player.kd_ratio)
     const wrVal = fmtWR(player.win_rate)
     const elo = player.elo || '?'
+    const avatarSrc = player.avatar || AVATAR_PLACEHOLDER
     return `
       <div class="cs-player-row ${sideClass}">
-        <img class="cs-player-avatar" src="${player.avatar || 'https://counterstrafe.pro/default-avatar.png'}" alt="" loading="lazy" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2232%22 height=%2232%22 viewBox=%220 0 32 32%22><rect width=%2232%22 height=%2232%22 fill=%22%23263144%22 rx=%224%22/></svg>'" />
+        <img class="cs-player-avatar" src="${escapeHtml(avatarSrc)}" alt="" loading="lazy" data-cs-fallback="${AVATAR_PLACEHOLDER}" />
         <div class="cs-player-info">
           <div class="cs-player-nick">${escapeHtml(player.nickname)}</div>
           <div class="cs-player-stats">
@@ -396,6 +403,18 @@
         </div>
       </div>
     `
+  }
+
+  // Attach error fallback to all avatars in the panel — needed because FACEIT's
+  // CSP blocks inline onerror handlers. Called every time we replace body.
+  function attachAvatarFallbacks(root) {
+    const imgs = root.querySelectorAll('img.cs-player-avatar')
+    for (const img of imgs) {
+      img.addEventListener('error', () => {
+        const fb = img.getAttribute('data-cs-fallback')
+        if (fb && img.src !== fb) img.src = fb
+      }, { once: true })
+    }
   }
 
   function buildTeam(team, side, userFaction) {
@@ -503,6 +522,7 @@
   function setPanelContent(html) {
     const panel = getOrCreatePanel()
     replaceBodyContent(panel, html)
+    attachAvatarFallbacks(panel)
   }
 
   function removePanel() {
@@ -532,11 +552,25 @@
     const result = await chrome.runtime.sendMessage({ type: 'FETCH_PREMATCH', matchID })
     if (currentMatchID !== matchID) { stopVetoPoll(); return }
     if (!result || result.error || !result.data) return // silent — keep showing last good state
+    if (!result.data.teams) return
 
     // Keep playerID from initial load (no need to re-auth every 4s)
     const pid     = vetoPlayerID ?? result.playerID
     const faction = findUserFaction(result.data, pid)
-    setPanelContent(buildContent(result.data, pid))
+
+    // Only swap the map column — re-rendering the whole panel every 4s causes
+    // avatars to refetch and the player list to flash. Map veto state is the
+    // only thing that actually changes during VOTING.
+    const panel  = document.getElementById(PANEL_ID)
+    const mapCol = panel && panel.querySelector('.cs-map-col')
+    const newMapHTML = buildMapPool(result.data, faction)
+    if (mapCol && newMapHTML) {
+      mapCol.innerHTML = newMapHTML
+    } else {
+      // Fallback: structure changed (e.g. first time map column appears) —
+      // rebuild the whole panel.
+      setPanelContent(buildContent(result.data, pid))
+    }
 
     if (result.data.status === 'VOTING') {
       injectVetoOverlays(result.data, faction)
@@ -563,12 +597,19 @@
       return
     }
     if (result.error) {
-      const isAuth = result.error.includes('401') || result.error.includes('403')
-      setPanelContent(`<div class="cs-panel-body">${buildError(result.error, isAuth)}</div>`)
+      const isAuth = result.status === 401 || result.status === 403
+      const msg = result.timeout
+        ? 'Сервер обрабатывает матч дольше обычного. Попробуй обновить страницу через минуту.'
+        : result.error
+      setPanelContent(`<div class="cs-panel-body">${buildError(msg, isAuth)}</div>`)
       return
     }
     if (!result.data) {
       setPanelContent(`<div class="cs-panel-body">${buildError('No data')}</div>`)
+      return
+    }
+    if (!result.data.teams || !result.data.teams.faction1 || !result.data.teams.faction2) {
+      setPanelContent(`<div class="cs-panel-body">${buildError('Неполные данные матча')}</div>`)
       return
     }
 
