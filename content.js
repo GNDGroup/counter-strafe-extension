@@ -15,6 +15,7 @@
   let currentMatchID = null
   let panelCollapsed = false
   let panelEnabled = true
+  let inlineEnabled = true
 
   // Load collapsed preference
   try {
@@ -334,6 +335,127 @@
     }
   }
 
+  // ── Inline stats — injected into FACEIT's own player cards ──────────────
+  // Adds a thin stats strip directly below each player row in FACEIT's UI
+  // (roster widget, scoreboard table, accolades carousel — wherever a player
+  // nickname is shown). Lifetime KD/WR/HS plus map-specific KD/WR when the
+  // map is known. Independent of the bottom panel and can be toggled
+  // separately from the popup.
+
+  const INLINE_STRIP_ATTR = 'data-cs-inline'   // marker on our injected element
+  const INLINE_ROW_ATTR   = 'data-cs-inline-row' // marker on the FACEIT row we attached under
+  let inlineLatestData = null                   // last prematch payload, used for re-injection on FACEIT re-renders
+  let inlineObserver   = null
+
+  function clearInlineStats() {
+    document.querySelectorAll(`[${INLINE_STRIP_ATTR}]`).forEach(el => el.remove())
+    document.querySelectorAll(`[${INLINE_ROW_ATTR}]`).forEach(el => el.removeAttribute(INLINE_ROW_ATTR))
+    if (inlineObserver) {
+      inlineObserver.disconnect()
+      inlineObserver = null
+    }
+    inlineLatestData = null
+  }
+
+  // Find the FACEIT row container for a nickname element by walking up to
+  // the first "row-shaped" ancestor (wide enough, not too tall).
+  function findInlineRow(nickEl) {
+    let curr = nickEl
+    for (let i = 0; i < 8 && curr && curr !== document.body; i++) {
+      const r = curr.getBoundingClientRect()
+      // A row has to be wider than the nickname itself, taller than just a single
+      // line of text, but not tall enough to be a card stack.
+      if (r.width >= 200 && r.height >= 40 && r.height <= 160) return curr
+      curr = curr.parentElement
+    }
+    return null
+  }
+
+  function buildInlineStrip(player, currentMap) {
+    const kd = fmtKD(player.kd_ratio)
+    const wr = fmtWR(player.win_rate)
+    const hs = player.hs_percent ? parseFloat(player.hs_percent).toFixed(0) + '%' : null
+
+    // Last-30 recent form, if available
+    let recentBlock = ''
+    if (player.recent_matches && parseInt(player.recent_matches) > 0) {
+      const recentWr = parseFloat(player.recent_wr || 0).toFixed(0)
+      recentBlock = `<span class="cs-inline-stat"><span class="cs-inline-lbl">L30</span> ${recentWr}%</span>`
+    }
+
+    // Map-specific lifetime stats for the map being played
+    let mapBlock = ''
+    if (currentMap && Array.isArray(player.map_stats)) {
+      const nmCurr = normMap(currentMap)
+      const ms = player.map_stats.find(s => normMap(s.map) === nmCurr)
+      if (ms && parseFloat(ms.win_rate) > 0) {
+        const mapLabel = currentMap.replace(/^de_/i, '').toUpperCase()
+        mapBlock = `<span class="cs-inline-stat cs-inline-stat--map"><span class="cs-inline-lbl">${escapeHtml(mapLabel)}</span> ${fmtKD(ms.kd_ratio)} KD · ${fmtWR(ms.win_rate)}</span>`
+      }
+    }
+
+    return `
+      <div class="cs-inline-strip" ${INLINE_STRIP_ATTR}="1">
+        <span class="cs-inline-stat"><span class="cs-inline-lbl">KD</span> ${kd}</span>
+        <span class="cs-inline-stat"><span class="cs-inline-lbl">WR</span> ${wr}</span>
+        ${hs ? `<span class="cs-inline-stat"><span class="cs-inline-lbl">HS</span> ${hs}</span>` : ''}
+        ${recentBlock}
+        ${mapBlock}
+      </div>
+    `
+  }
+
+  function injectInlineStats(data) {
+    if (!data || !data.teams) return
+    inlineLatestData = data
+
+    // Build nickname → player map (case-insensitive)
+    const byNick = new Map()
+    for (const fac of ['faction1', 'faction2']) {
+      for (const p of (data.teams[fac]?.players || [])) {
+        if (p.nickname) byNick.set(p.nickname.toLowerCase(), p)
+      }
+    }
+    if (byNick.size === 0) return
+
+    const currentMap = data.map || ''
+
+    // Find every Nickname__Name node in FACEIT's DOM
+    const nodes = document.querySelectorAll('[class*="Nickname__Name"]')
+    const seenRows = new WeakSet()
+
+    for (const node of nodes) {
+      const nick = (node.textContent || '').trim().toLowerCase()
+      if (!nick) continue
+      const player = byNick.get(nick)
+      if (!player) continue
+
+      const row = findInlineRow(node)
+      if (!row || seenRows.has(row)) continue
+      if (row.getAttribute(INLINE_ROW_ATTR) === '1') continue
+
+      seenRows.add(row)
+      row.setAttribute(INLINE_ROW_ATTR, '1')
+      row.insertAdjacentHTML('afterend', buildInlineStrip(player, currentMap))
+    }
+
+    startInlineObserver()
+  }
+
+  // FACEIT re-renders parts of the scoreboard (tab switches, accolade carousel
+  // pagination, live updates). Use a debounced MutationObserver to re-inject.
+  function startInlineObserver() {
+    if (inlineObserver) return
+    let t = null
+    inlineObserver = new MutationObserver(() => {
+      clearTimeout(t)
+      t = setTimeout(() => {
+        if (inlineLatestData) injectInlineStats(inlineLatestData)
+      }, 400)
+    })
+    inlineObserver.observe(document.body, { childList: true, subtree: true })
+  }
+
   // ── Panel HTML builders ───────────────────────────────────────────────────
   const skelRow = '<div class="cs-skel-row"><div class="cs-skel-avatar"></div><div class="cs-skel-lines"><div class="cs-skel-line cs-skel-line-wide"></div><div class="cs-skel-line cs-skel-line-narrow"></div></div></div>'
   const skelMapRow = '<div class="cs-skel-bar"></div>'
@@ -510,6 +632,7 @@
   function removePanel() {
     stopVetoPoll()
     clearVetoOverlays()
+    clearInlineStats()
     const panel = document.getElementById(PANEL_ID)
     if (panel) panel.remove()
     currentMatchID = null
@@ -562,7 +685,7 @@
     currentMatchID = matchID
     stopVetoPoll()
 
-    setPanelLoading()
+    if (panelEnabled) setPanelLoading()
 
     const result = await chrome.runtime.sendMessage({ type: 'FETCH_PREMATCH', matchID })
 
@@ -570,7 +693,7 @@
     if (currentMatchID !== matchID) return
 
     if (!result) {
-      setPanelContent(`<div class="cs-panel-body">${buildError('Extension error')}</div>`)
+      if (panelEnabled) setPanelContent(`<div class="cs-panel-body">${buildError('Extension error')}</div>`)
       return
     }
     if (result.error) {
@@ -578,19 +701,20 @@
       const msg = result.timeout
         ? 'Сервер обрабатывает матч дольше обычного. Попробуй обновить страницу через минуту.'
         : result.error
-      setPanelContent(`<div class="cs-panel-body">${buildError(msg, isAuth)}</div>`)
+      if (panelEnabled) setPanelContent(`<div class="cs-panel-body">${buildError(msg, isAuth)}</div>`)
       return
     }
     if (!result.data) {
-      setPanelContent(`<div class="cs-panel-body">${buildError('No data')}</div>`)
+      if (panelEnabled) setPanelContent(`<div class="cs-panel-body">${buildError('No data')}</div>`)
       return
     }
     if (!result.data.teams || !result.data.teams.faction1 || !result.data.teams.faction2) {
-      setPanelContent(`<div class="cs-panel-body">${buildError('Неполные данные матча')}</div>`)
+      if (panelEnabled) setPanelContent(`<div class="cs-panel-body">${buildError('Неполные данные матча')}</div>`)
       return
     }
 
-    setPanelContent(buildContent(result.data))
+    if (panelEnabled) setPanelContent(buildContent(result.data))
+    if (inlineEnabled) injectInlineStats(result.data)
 
     // If veto is live, poll every 4s and inject overlays immediately
     if (result.data.status === 'VOTING') {
@@ -601,7 +725,7 @@
   }
 
   function handleNavigation() {
-    if (!panelEnabled) return
+    if (!panelEnabled && !inlineEnabled) return
     const matchID = extractMatchID(location.href)
     if (!matchID) {
       removePanel()
@@ -643,24 +767,44 @@
   })
   observer.observe(document.body, { childList: true, subtree: true })
 
-  // ── Panel enable/disable from popup ─────────────────────────────────────
-  const STORAGE_KEY_PANEL = 'cs_panel_enabled'
+  // ── Panel/inline enable/disable from popup ──────────────────────────────
+  const STORAGE_KEY_PANEL  = 'cs_panel_enabled'
+  const STORAGE_KEY_INLINE = 'cs_inline_enabled'
 
-  // Load panel enabled setting, then run initial navigation
-  chrome.storage.local.get(STORAGE_KEY_PANEL, (result) => {
-    panelEnabled = result[STORAGE_KEY_PANEL] !== false
-    // ── Initial run ───────────────────────────────────────────────────────
+  // Load both toggles before running initial navigation.
+  chrome.storage.local.get([STORAGE_KEY_PANEL, STORAGE_KEY_INLINE], (result) => {
+    panelEnabled  = result[STORAGE_KEY_PANEL]  !== false
+    inlineEnabled = result[STORAGE_KEY_INLINE] !== false
     handleNavigation()
   })
 
-  // Listen for toggle from popup
+  function hidePanelOnly() {
+    stopVetoPoll()
+    clearVetoOverlays()
+    const panel = document.getElementById(PANEL_ID)
+    if (panel) panel.remove()
+  }
+
+  // Listen for toggle messages from popup. Toggling either mode never wipes the
+  // other — only the affected surface is rebuilt or torn down.
   chrome.runtime.onMessage.addListener((msg) => {
     if (msg.type === 'SET_PANEL_ENABLED') {
       panelEnabled = msg.enabled
       if (!panelEnabled) {
-        removePanel()
+        hidePanelOnly()
       } else {
-        // Reset currentMatchID so loadMatchAnalytics re-fetches
+        // Reset currentMatchID so loadMatchAnalytics re-fetches the panel
+        currentMatchID = null
+        handleNavigation()
+      }
+    }
+    if (msg.type === 'SET_INLINE_ENABLED') {
+      inlineEnabled = msg.enabled
+      if (!inlineEnabled) {
+        clearInlineStats()
+      } else {
+        // If we already have data cached for this match, just re-inject; otherwise
+        // run navigation which will fetch.
         currentMatchID = null
         handleNavigation()
       }

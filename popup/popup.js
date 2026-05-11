@@ -1,6 +1,7 @@
 // CounterStrafe Analytics — Popup Script
 
-const STORAGE_KEY_PANEL = 'cs_panel_enabled'
+const STORAGE_KEY_PANEL  = 'cs_panel_enabled'
+const STORAGE_KEY_INLINE = 'cs_inline_enabled'
 
 function show(id) { document.getElementById(id)?.classList.remove('hidden') }
 function hide(id) { document.getElementById(id)?.classList.add('hidden') }
@@ -34,20 +35,29 @@ async function init() {
     show('login-link')
   }
 
-  // ── Panel toggle ─────────────────────────────────────────────────────────
-  const toggle = document.getElementById('panel-toggle')
-  const stored = await chrome.storage.local.get(STORAGE_KEY_PANEL)
-  const enabled = stored[STORAGE_KEY_PANEL] !== false // default true
-  toggle.checked = enabled
+  // ── Mode toggles (panel + inline are independent) ────────────────────────
+  const panelToggle  = document.getElementById('panel-toggle')
+  const inlineToggle = document.getElementById('inline-toggle')
 
-  toggle.addEventListener('change', async () => {
-    await chrome.storage.local.set({ [STORAGE_KEY_PANEL]: toggle.checked })
-    // Notify content script about toggle change
+  const stored = await chrome.storage.local.get([STORAGE_KEY_PANEL, STORAGE_KEY_INLINE])
+  panelToggle.checked  = stored[STORAGE_KEY_PANEL]  !== false // default true
+  inlineToggle.checked = stored[STORAGE_KEY_INLINE] !== false // default true
+
+  async function notifyActiveTab(message) {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
     if (tab?.id) {
-      chrome.tabs.sendMessage(tab.id, { type: 'SET_PANEL_ENABLED', enabled: toggle.checked })
-        .catch(() => { /* content script may not be running on this tab */ })
+      chrome.tabs.sendMessage(tab.id, message).catch(() => { /* no content script on this tab */ })
     }
+  }
+
+  panelToggle.addEventListener('change', async () => {
+    await chrome.storage.local.set({ [STORAGE_KEY_PANEL]: panelToggle.checked })
+    notifyActiveTab({ type: 'SET_PANEL_ENABLED', enabled: panelToggle.checked })
+  })
+
+  inlineToggle.addEventListener('change', async () => {
+    await chrome.storage.local.set({ [STORAGE_KEY_INLINE]: inlineToggle.checked })
+    notifyActiveTab({ type: 'SET_INLINE_ENABLED', enabled: inlineToggle.checked })
   })
 
   // ── Tab status ───────────────────────────────────────────────────────────
