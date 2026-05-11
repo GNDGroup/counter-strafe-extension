@@ -357,18 +357,39 @@
     inlineLatestData = null
   }
 
-  // Find the FACEIT row container for a nickname element by walking up to
-  // the first "row-shaped" ancestor (wide enough, not too tall).
+  // Find the OUTERMOST sensible row container for a nickname element.
+  // Walks up the full ancestry and keeps the largest row-shaped candidate —
+  // this avoids matching an inner sub-row (avatar+name only) when the actual
+  // FACEIT "card" wraps multiple inner elements.
   function findInlineRow(nickEl) {
-    let curr = nickEl
-    for (let i = 0; i < 8 && curr && curr !== document.body; i++) {
+    let candidate = null
+    let curr = nickEl.parentElement
+    for (let i = 0; i < 10 && curr && curr !== document.body; i++) {
       const r = curr.getBoundingClientRect()
-      // A row has to be wider than the nickname itself, taller than just a single
-      // line of text, but not tall enough to be a card stack.
-      if (r.width >= 200 && r.height >= 40 && r.height <= 160) return curr
+      const cls = (curr.className || '').toString()
+      const isRowShaped = r.width >= 200 && r.height >= 40 && r.height <= 200
+      // Hint: FACEIT class names that strongly imply a row container.
+      const isLikelyRow = /PlayerCard|AccoladeCard|Row|styles__Row/i.test(cls)
+      if (isRowShaped && (isLikelyRow || !candidate)) {
+        candidate = curr
+      }
+      // Stop early if we've gone past anything that could plausibly be a card.
+      if (r.height > 200 || r.width > 1800) break
       curr = curr.parentElement
     }
-    return null
+    return candidate
+  }
+
+  // True if this row already has our strip (own marker), or sits inside / wraps
+  // another row that does. Prevents double-injection when a player nickname
+  // appears in multiple nested elements within the same FACEIT card.
+  function hasInlineMarkerAnywhere(row) {
+    let p = row
+    while (p && p !== document.body) {
+      if (p.getAttribute && p.getAttribute(INLINE_ROW_ATTR) === '1') return true
+      p = p.parentElement
+    }
+    return !!row.querySelector(`[${INLINE_ROW_ATTR}="1"]`)
   }
 
   function buildInlineStrip(player, currentMap) {
@@ -418,28 +439,64 @@
     }
     if (byNick.size === 0) return
 
+    // Pause observer while we mutate — otherwise our own DOM additions trigger
+    // a re-injection cascade that piles up duplicate strips.
+    const wasObserving = inlineObserver !== null
+    if (wasObserving) inlineObserver.disconnect()
+
+    // Always start from a clean slate. FACEIT re-renders frequently, which
+    // can orphan strips or wipe our markers, causing duplicate injection on
+    // the next observer tick. Clear-then-rebuild is simpler and avoids that.
+    document.querySelectorAll(`[${INLINE_STRIP_ATTR}="1"]`).forEach(el => el.remove())
+    document.querySelectorAll(`[${INLINE_ROW_ATTR}="1"]`).forEach(el => el.removeAttribute(INLINE_ROW_ATTR))
+
     const currentMap = data.map || ''
 
     // Find every Nickname__Name node in FACEIT's DOM
     const nodes = document.querySelectorAll('[class*="Nickname__Name"]')
-    const seenRows = new WeakSet()
+
+    // Position-based dedup: if two nickname elements resolve to rows at the
+    // same on-screen spot (inner + outer wrapper of the same card), keep one.
+    const seenAtPosition = new Set()
 
     for (const node of nodes) {
+      // Skip hidden / zero-size duplicate name spans that FACEIT renders for
+      // tooltips and accessibility — they cause double injection.
+      if (node.offsetWidth < 20 || node.offsetHeight < 10) continue
+
       const nick = (node.textContent || '').trim().toLowerCase()
       if (!nick) continue
       const player = byNick.get(nick)
       if (!player) continue
 
       const row = findInlineRow(node)
-      if (!row || seenRows.has(row)) continue
-      if (row.getAttribute(INLINE_ROW_ATTR) === '1') continue
+      if (!row) continue
 
-      seenRows.add(row)
+      const rect = row.getBoundingClientRect()
+      if (rect.width === 0 || rect.height === 0) continue  // not in layout
+
+      // Bucket position into ~10px slots so tiny render differences don't slip
+      // through. Two name elements at roughly the same on-screen location must
+      // resolve to a single strip.
+      const posKey = `${nick}|${Math.round((rect.top + window.scrollY) / 10)}|${Math.round(rect.left / 10)}`
+      if (seenAtPosition.has(posKey)) continue
+      seenAtPosition.add(posKey)
+
+      if (hasInlineMarkerAnywhere(row)) continue
+
       row.setAttribute(INLINE_ROW_ATTR, '1')
       row.insertAdjacentHTML('afterend', buildInlineStrip(player, currentMap))
     }
 
-    startInlineObserver()
+    // Resume / start observer after mutations are done. We use a microtask so
+    // the layout finishes before we reattach (avoids picking up our own writes).
+    if (wasObserving && inlineObserver) {
+      Promise.resolve().then(() => {
+        if (inlineObserver) inlineObserver.observe(document.body, { childList: true, subtree: true })
+      })
+    } else {
+      startInlineObserver()
+    }
   }
 
   // FACEIT re-renders parts of the scoreboard (tab switches, accolade carousel
