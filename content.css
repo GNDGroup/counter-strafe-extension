@@ -480,34 +480,47 @@
   50% { opacity: 0.35; }
 }
 
-/* ── Inline strip — injected directly under each FACEIT player row ────── */
+/* ── Inline strip — glass capsule injected under each FACEIT player row ── */
+/* Outer wrapper guarantees a full-width row regardless of FACEIT's parent
+ * layout (flex-row, grid, etc.). The capsule inside has its own margin so it
+ * floats as an inset pill below the card, without stretching edge-to-edge.
+ */
 .cs-inline-strip {
-  display: flex !important;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  padding: 4px 12px 4px 56px;  /* left padding to align past avatar column */
-  margin: 0 0 4px;
-  box-sizing: border-box;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  font-size: 11px;
-  color: #94a3b8;
-  background: linear-gradient(180deg, rgba(59,130,246,0.06), rgba(59,130,246,0));
-  border-left: 2px solid rgba(59,130,246,0.4);
-  border-radius: 0 6px 6px 0;
-  line-height: 1.2;
-  /* Force full-width sibling slot regardless of FACEIT's parent layout. */
+  display: block !important;
   width: 100% !important;
   flex: 1 0 100% !important;
   grid-column: 1 / -1 !important;
+  margin: 0 0 6px;
+  padding: 0;
+  background: transparent;
+  border: none;
   clear: both;
+  box-sizing: border-box;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.cs-inline-capsule {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 0 12px 0 56px;        /* clear avatar column on the left */
+  padding: 4px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 18px;
+  font-size: 11px;
+  line-height: 1.2;
+  color: #94a3b8;
 }
 
 .cs-inline-stat {
   display: inline-flex;
   align-items: baseline;
-  gap: 3px;
-  color: #cbd5e1;
+  gap: 4px;
+  color: #e2e8f0;
   font-weight: 600;
   white-space: nowrap;
 }
@@ -515,18 +528,18 @@
 .cs-inline-lbl {
   font-size: 9px;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: #475569;
+  color: #64748b;
 }
 
 .cs-inline-stat--map {
   margin-left: auto;
-  padding: 2px 6px;
-  background: rgba(59,130,246,0.10);
-  border-radius: 4px;
-  color: #cbd5e1;
+  padding: 2px 10px;
+  background: rgba(59, 130, 246, 0.18);
+  border-radius: 10px;
+  color: #cfe1fb;
 }
 .cs-inline-stat--map .cs-inline-lbl {
-  color: #3b82f6;
+  color: rgba(207, 225, 251, 0.65);
 }

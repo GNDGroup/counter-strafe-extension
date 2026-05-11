@@ -417,11 +417,13 @@
 
     return `
       <div class="cs-inline-strip" ${INLINE_STRIP_ATTR}="1">
-        <span class="cs-inline-stat"><span class="cs-inline-lbl">KD</span> ${kd}</span>
-        <span class="cs-inline-stat"><span class="cs-inline-lbl">WR</span> ${wr}</span>
-        ${hs ? `<span class="cs-inline-stat"><span class="cs-inline-lbl">HS</span> ${hs}</span>` : ''}
-        ${recentBlock}
-        ${mapBlock}
+        <div class="cs-inline-capsule">
+          <span class="cs-inline-stat"><span class="cs-inline-lbl">KD</span> ${kd}</span>
+          <span class="cs-inline-stat"><span class="cs-inline-lbl">WR</span> ${wr}</span>
+          ${hs ? `<span class="cs-inline-stat"><span class="cs-inline-lbl">HS</span> ${hs}</span>` : ''}
+          ${recentBlock}
+          ${mapBlock}
+        </div>
       </div>
     `
   }
