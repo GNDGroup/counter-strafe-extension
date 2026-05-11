@@ -392,17 +392,58 @@
     return !!row.querySelector(`[${INLINE_ROW_ATTR}="1"]`)
   }
 
+  function fmtMatches(n) {
+    const v = parseInt(n) || 0
+    if (v >= 10000) return Math.round(v / 1000) + 'k'
+    if (v >= 1000)  return (v / 1000).toFixed(1).replace(/\.0$/, '') + 'k'
+    return String(v)
+  }
+
+  // Estimate lifetime kills-per-round from map_stats (FACEIT lifetime payload
+   // doesn't include KR directly, only per-map). Weighted by matches on each map.
+  function computeLifetimeKR(player) {
+    const stats = player.map_stats || []
+    let acc = 0, total = 0
+    for (const ms of stats) {
+      const kr = parseFloat(ms.kr_ratio) || 0
+      const games = parseInt(ms.matches) || 0
+      if (kr > 0 && games > 0) {
+        acc += kr * games
+        total += games
+      }
+    }
+    return total > 0 ? acc / total : null
+  }
+
+  function fmtAvg(kr) {
+    // Avg kills per match: KR (kills/round) × ~22 rounds (CS2 MR12 typical match).
+    if (!isFinite(kr) || kr <= 0) return null
+    return (kr * 22).toFixed(1)
+  }
+
+  function buildCopyString(player) {
+    const kr = computeLifetimeKR(player)
+    const parts = [
+      `KD ${fmtKD(player.kd_ratio)}`,
+      `WR ${fmtWR(player.win_rate)}`,
+    ]
+    if (player.hs_percent) parts.push(`HS ${parseFloat(player.hs_percent).toFixed(0)}%`)
+    if (kr)                parts.push(`KR ${kr.toFixed(2)}`)
+    const avg = fmtAvg(kr)
+    if (avg)               parts.push(`AVG ${avg}`)
+    if (player.matches)    parts.push(`${fmtMatches(player.matches)} матчей`)
+    const nick = (player.nickname || '').toString()
+    return nick ? `${nick} — ${parts.join(' · ')}` : parts.join(' · ')
+  }
+
   function buildInlineStrip(player, currentMap) {
     const kd = fmtKD(player.kd_ratio)
     const wr = fmtWR(player.win_rate)
     const hs = player.hs_percent ? parseFloat(player.hs_percent).toFixed(0) + '%' : null
-
-    // Last-30 recent form, if available
-    let recentBlock = ''
-    if (player.recent_matches && parseInt(player.recent_matches) > 0) {
-      const recentWr = parseFloat(player.recent_wr || 0).toFixed(0)
-      recentBlock = `<span class="cs-inline-stat"><span class="cs-inline-lbl">L30</span> ${recentWr}%</span>`
-    }
+    const krRaw = computeLifetimeKR(player)
+    const kr = krRaw ? krRaw.toFixed(2) : null
+    const avg = fmtAvg(krRaw)
+    const matches = player.matches ? fmtMatches(player.matches) : null
 
     // Map-specific lifetime stats for the map being played
     let mapBlock = ''
@@ -411,9 +452,19 @@
       const ms = player.map_stats.find(s => normMap(s.map) === nmCurr)
       if (ms && parseFloat(ms.win_rate) > 0) {
         const mapLabel = currentMap.replace(/^de_/i, '').toUpperCase()
-        mapBlock = `<span class="cs-inline-stat cs-inline-stat--map"><span class="cs-inline-lbl">${escapeHtml(mapLabel)}</span> ${fmtKD(ms.kd_ratio)} KD · ${fmtWR(ms.win_rate)}</span>`
+        mapBlock = `<span class="cs-inline-stat cs-inline-stat--map"><span class="cs-inline-lbl">${escapeHtml(mapLabel)}</span> ${fmtKD(ms.kd_ratio)}/${fmtWR(ms.win_rate)}</span>`
       }
     }
+
+    const copyText = buildCopyString(player)
+    const copyBtn = `
+      <button class="cs-inline-copy" type="button" title="Скопировать статистику" data-cs-copy="${escapeHtml(copyText)}">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="9" y="9" width="13" height="13" rx="2"/>
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+        </svg>
+      </button>
+    `
 
     return `
       <div class="cs-inline-strip" ${INLINE_STRIP_ATTR}="1">
@@ -421,11 +472,33 @@
           <span class="cs-inline-stat"><span class="cs-inline-lbl">KD</span> ${kd}</span>
           <span class="cs-inline-stat"><span class="cs-inline-lbl">WR</span> ${wr}</span>
           ${hs ? `<span class="cs-inline-stat"><span class="cs-inline-lbl">HS</span> ${hs}</span>` : ''}
-          ${recentBlock}
+          ${kr ? `<span class="cs-inline-stat"><span class="cs-inline-lbl">KR</span> ${kr}</span>` : ''}
+          ${avg ? `<span class="cs-inline-stat"><span class="cs-inline-lbl">AVG</span> ${avg}</span>` : ''}
+          ${matches ? `<span class="cs-inline-stat"><span class="cs-inline-lbl">M</span> ${matches}</span>` : ''}
+          ${copyBtn}
           ${mapBlock}
         </div>
       </div>
     `
+  }
+
+  // Delegated click handler for copy buttons — written once per page load.
+  if (!window.__csCopyHandlerInstalled) {
+    window.__csCopyHandlerInstalled = true
+    document.addEventListener('click', (ev) => {
+      const btn = ev.target.closest('.cs-inline-copy')
+      if (!btn) return
+      ev.preventDefault()
+      ev.stopPropagation()
+      const txt = btn.getAttribute('data-cs-copy') || ''
+      navigator.clipboard.writeText(txt).then(
+        () => {
+          btn.classList.add('cs-inline-copy--copied')
+          setTimeout(() => btn.classList.remove('cs-inline-copy--copied'), 1500)
+        },
+        () => { /* clipboard write failed — silently ignore */ },
+      )
+    }, true)
   }
 
   function injectInlineStats(data) {
