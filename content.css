@@ -116,17 +116,6 @@
   text-overflow: ellipsis;
 }
 
-.cs-my-team-badge {
-  font-size: 9px;
-  font-weight: 700;
-  color: #3b82f6;
-  border: 1px solid rgba(59,130,246,0.4);
-  background: rgba(59,130,246,0.1);
-  padding: 1px 5px;
-  border-radius: 4px;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
 
 /* Player rows */
 .cs-player-row {
@@ -283,11 +272,10 @@
 
 /* ── FACEIT map card overlays ────────────────────────────────────────────── */
 
-/* Coloured outline on FACEIT's own map card elements */
-[data-cs-veto="good"]    { outline: 2px solid #10b981 !important; outline-offset: 2px !important; border-radius: 4px; }
-[data-cs-veto="likely"]  { outline: 2px solid #06b6d4 !important; outline-offset: 2px !important; border-radius: 4px; }
-[data-cs-veto="bad"]     { outline: 2px solid #f43f5e !important; outline-offset: 2px !important; border-radius: 4px; }
-[data-cs-veto="weak"]    { outline: 2px solid #f59e0b !important; outline-offset: 2px !important; border-radius: 4px; }
+/* Coloured outline on FACEIT's own map card elements — neutral by team */
+[data-cs-veto="f1"]      { outline: 2px solid #5a9fd4 !important; outline-offset: 2px !important; border-radius: 4px; }
+[data-cs-veto="f2"]      { outline: 2px solid #fcbf49 !important; outline-offset: 2px !important; border-radius: 4px; }
+[data-cs-veto="neutral"] { outline: 2px solid rgba(148,163,184,0.5) !important; outline-offset: 2px !important; border-radius: 4px; }
 [data-cs-veto="banned"]  { opacity: 0.45 !important; filter: grayscale(0.5) !important; }
 
 /* Floating badge rendered directly in body, positioned over the card */
@@ -306,10 +294,8 @@
   transform: translateX(-50%);
   box-shadow: 0 2px 8px rgba(0,0,0,0.5);
 }
-.cs-veto-badge--good   { background: #10b981; color: #fff; }
-.cs-veto-badge--likely { background: #06b6d4; color: #fff; }
-.cs-veto-badge--bad    { background: #f43f5e; color: #fff; }
-.cs-veto-badge--weak   { background: #f59e0b; color: #0f172a; }
+.cs-veto-badge--f1     { background: #5a9fd4; color: #0f172a; }
+.cs-veto-badge--f2     { background: #fcbf49; color: #0f172a; }
 
 /* Live veto indicator dot */
 .cs-live-dot {
@@ -385,8 +371,10 @@
   top: 0;
   transition: width 300ms ease;
 }
-.cs-adv-bar--pos { background: #3b82f6; left: 50%; }
-.cs-adv-bar--neg { background: #f43f5e; right: 50%; }
+/* Positive adv = faction1 (left team) ahead — bar extends LEFT toward their column. */
+.cs-adv-bar--pos { background: #5a9fd4; right: 50%; }
+/* Negative adv = faction2 (right team) ahead — bar extends RIGHT toward their column. */
+.cs-adv-bar--neg { background: #fcbf49; left: 50%; }
 
 .cs-map-wr-nums {
   display: flex;
@@ -397,9 +385,9 @@
   width: 36px;
 }
 .cs-map-wr { font-size: 9px; font-weight: 700; line-height: 1.2; }
-.cs-map-wr--us   { color: #3b82f6; }
-.cs-map-wr--them { color: #f43f5e; }
-.cs-map-wr--num  { color: #3b82f6; }
+.cs-map-wr--num  { color: #cbd5e1; }
+.cs-map-wr--f1   { color: #5a9fd4; }
+.cs-map-wr--f2   { color: #fcbf49; }
 .cs-map-wr--dim  { font-size: 8px; font-weight: 400; color: #475569; }
 
 /* Footer */

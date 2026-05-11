@@ -125,12 +125,13 @@
     }
   }
 
-  function buildMapPool(data, userFaction) {
-    if (!userFaction) return '' // can't personalise without knowing which team
-
-    const myPlayers    = data.teams[userFaction]?.players || []
-    const theirKey     = userFaction === 'faction1' ? 'faction2' : 'faction1'
-    const theirPlayers = data.teams[theirKey]?.players || []
+  function buildMapPool(data) {
+    // Always neutral perspective: faction1 (left) vs faction2 (right).
+    // The extension doesn't root for either side — it just surfaces who has the
+    // statistical edge on each map and the current veto state.
+    const f1Players = data.teams?.faction1?.players || []
+    const f2Players = data.teams?.faction2?.players || []
+    if (f1Players.length === 0 && f2Players.length === 0) return ''
 
     // ── Build entity map from real-time veto data (if available) ─────────────
     // FACEIT API returns voting.map.entities[] with status: "available"|"drop"|"pick"
@@ -148,17 +149,16 @@
     const entries = CS2_MAP_POOL.map(mapName => {
       const nm     = normMap(mapName)
       const entity = entityByMap[nm] || null
-      const my    = teamMapScore(myPlayers, mapName)
-      const their = teamMapScore(theirPlayers, mapName)
+      const f1    = teamMapScore(f1Players, mapName)
+      const f2    = teamMapScore(f2Players, mapName)
 
-      // Бонус за преимущество в объёме данных:
-      // если у нас 10 игр, а у них 1 — наши данные куда надёжнее.
-      // (ourGames - theirGames) / total × 8 → максимум ±8 баллов
-      const totalG      = my.totalGames + their.totalGames
+      // Sample-size bonus: faction with more games on the map gets a confidence
+      // boost worth at most ±8 points.
+      const totalG      = f1.totalGames + f2.totalGames
       const sampleBonus = totalG > 1
-        ? ((my.totalGames - their.totalGames) / totalG) * 8
+        ? ((f1.totalGames - f2.totalGames) / totalG) * 8
         : 0
-      const adv = my.score - their.score + sampleBonus
+      const adv = f1.score - f2.score + sampleBonus
 
       // Veto state from live data
       let vetoStatus  = null // null | "available" | "drop" | "pick"
@@ -170,21 +170,21 @@
         vetoStatus = 'pick'
       }
 
-      return { map: mapName, nm, my, their, adv, vetoStatus, vetoBy }
+      return { map: mapName, nm, f1, f2, adv, vetoStatus, vetoBy }
     })
 
-    // Sort: picks first → available by advantage → banned/dropped last
+    // Sort: picks first → available by absolute advantage → banned/dropped last
     entries.sort((a, b) => {
       const order = s => s === 'pick' ? 0 : s === 'available' || !s ? 1 : 2
       const od = order(a.vetoStatus) - order(b.vetoStatus)
       if (od !== 0) return od
-      return b.adv - a.adv
+      return Math.abs(b.adv) - Math.abs(a.adv)
     })
 
     const rows = entries.map(e => {
       const mapShort = e.map.replace('de_', '').toUpperCase()
       const adv      = e.adv
-      const noData   = e.my.coverage < 0.2 && e.their.coverage < 0.2
+      const noData   = e.f1.coverage < 0.2 && e.f2.coverage < 0.2
 
       let badge    = ''
       let rowClass = 'cs-map-row'
@@ -193,26 +193,18 @@
         badge    = '<span class="cs-map-badge cs-map-badge--pick">PICK</span>'
         rowClass = 'cs-map-row cs-map-row--pick'
       } else if (e.vetoStatus === 'drop') {
-        const banner = e.vetoBy === userFaction ? 'мы' : e.vetoBy ? 'они' : ''
-        const label  = banner ? `забанили ${banner}` : 'забанена'
-        badge    = `<span class="cs-map-badge cs-map-badge--banned">${label}</span>`
+        badge    = '<span class="cs-map-badge cs-map-badge--banned">забанена</span>'
         rowClass = 'cs-map-row cs-map-row--banned'
       } else if (noData) {
         badge = '<span class="cs-map-badge cs-map-badge--nodata">?</span>'
-      } else if (adv >= 12) {
-        badge    = '<span class="cs-map-badge cs-map-badge--good">ПИК</span>'
-        rowClass = 'cs-map-row cs-map-row--pik'
-      } else if (adv <= -12) {
-        badge    = '<span class="cs-map-badge cs-map-badge--bad">БАН</span>'
-        rowClass = 'cs-map-row cs-map-row--ban'
       }
 
       // Advantage bar
       const clamped = Math.min(Math.max(adv, -50), 50)
       const barPct  = Math.abs(clamped) / 50 * 48
       const isPos   = adv >= 0
-      const myWr    = e.my.score.toFixed(0)
-      const theirWr = e.their.score.toFixed(0)
+      const myWr    = e.f1.score.toFixed(0)
+      const theirWr = e.f2.score.toFixed(0)
 
       // Banned maps: hide bars, just show greyed-out name + badge
       if (e.vetoStatus === 'drop') {
@@ -237,7 +229,7 @@
               <div class="cs-adv-bar ${isPos ? 'cs-adv-bar--pos' : 'cs-adv-bar--neg'}" style="width:${barPct}%"></div>
             </div>
             <div class="cs-map-wr-nums">
-              <span class="cs-map-wr cs-map-wr--num">${adv >= 0 ? '+' : ''}${adv.toFixed(0)}</span>
+              <span class="cs-map-wr cs-map-wr--num cs-map-wr--${isPos ? 'f1' : 'f2'}">${adv >= 0 ? '+' : ''}${adv.toFixed(0)}</span>
               <span class="cs-map-wr cs-map-wr--dim">${myWr}%&hairsp;/&hairsp;${theirWr}%</span>
             </div>
           </div>
@@ -298,13 +290,12 @@
     badge.style.left = (r.left + r.width / 2) + 'px'
   }
 
-  function injectVetoOverlays(data, userFaction) {
+  function injectVetoOverlays(data) {
     clearVetoOverlays()
-    if (!userFaction || !data.voting?.map?.entities?.length) return
+    if (!data.voting?.map?.entities?.length) return
 
-    const myPlayers    = data.teams[userFaction]?.players || []
-    const theirKey     = userFaction === 'faction1' ? 'faction2' : 'faction1'
-    const theirPlayers = data.teams[theirKey]?.players || []
+    const f1Players = data.teams?.faction1?.players || []
+    const f2Players = data.teams?.faction2?.players || []
 
     for (const entity of data.voting.map.entities) {
       if (!entity.class_name) continue
@@ -318,13 +309,15 @@
 
       if (entity.status !== 'available') continue
 
-      const my    = teamMapScore(myPlayers, entity.class_name)
-      const their = teamMapScore(theirPlayers, entity.class_name)
-      const adv   = my.score - their.score
+      const f1  = teamMapScore(f1Players, entity.class_name)
+      const f2  = teamMapScore(f2Players, entity.class_name)
+      const adv = f1.score - f2.score
 
+      // Neutral perspective: highlight which faction has the edge, don't
+      // tell anyone what to pick or ban. Outline + numeric advantage badge.
       let type = null, text = ''
-      if      (adv >= 12)  { type = 'good'; text = 'ПИК' }
-      else if (adv <= -12) { type = 'bad';  text = 'БАН' }
+      if      (adv >=  12) { type = 'f1'; text = `T1 +${adv.toFixed(0)}` }
+      else if (adv <= -12) { type = 'f2'; text = `T2 +${Math.abs(adv).toFixed(0)}` }
 
       const card = findFaceitMapCard(entity.class_name)
       if (!card) continue
@@ -417,35 +410,24 @@
     }
   }
 
-  function buildTeam(team, side, userFaction) {
+  function buildTeam(team, side) {
     const players = (team.players || []).map(p => buildPlayerRow(p, side)).join('')
-    const isMyTeam = userFaction === side
     const dotClass = side === 'faction1' ? 'cs-side-ct-dot' : 'cs-side-t-dot'
-    const myBadge = isMyTeam ? '<span class="cs-my-team-badge">Ваша команда</span>' : ''
     return `
       <div class="cs-team">
         <div class="cs-team-header">
           <span class="cs-team-dot ${dotClass}"></span>
           <span class="cs-team-name">${escapeHtml(team.name || 'Team')}</span>
-          ${myBadge}
         </div>
         ${players}
       </div>
     `
   }
 
-  function findUserFaction(data, playerID) {
-    if (!playerID) return null
-    if ((data.teams.faction1.players || []).some(p => p.player_id === playerID)) return 'faction1'
-    if ((data.teams.faction2.players || []).some(p => p.player_id === playerID)) return 'faction2'
-    return null
-  }
-
-  function buildContent(data, playerID) {
-    const userFaction = findUserFaction(data, playerID)
-    const t1 = buildTeam(data.teams.faction1, 'faction1', userFaction)
-    const t2 = buildTeam(data.teams.faction2, 'faction2', userFaction)
-    const mapPool = buildMapPool(data, userFaction)
+  function buildContent(data) {
+    const t1 = buildTeam(data.teams.faction1, 'faction1')
+    const t2 = buildTeam(data.teams.faction2, 'faction2')
+    const mapPool = buildMapPool(data)
     const centerCol = mapPool
       ? `<div class="cs-map-col">${mapPool}</div>`
       : `<div class="cs-col-divider"></div>`
@@ -531,12 +513,10 @@
     const panel = document.getElementById(PANEL_ID)
     if (panel) panel.remove()
     currentMatchID = null
-    vetoPlayerID   = null
   }
 
   // ── Main logic ────────────────────────────────────────────────────────────
 
-  let vetoPlayerID  = null  // remembered across polls so auth isn't re-fetched
   let vetoPollTimer = null  // setInterval id for veto polling
 
   function stopVetoPoll() {
@@ -555,25 +535,22 @@
     if (!result.data.teams) return
 
     // Keep playerID from initial load (no need to re-auth every 4s)
-    const pid     = vetoPlayerID ?? result.playerID
-    const faction = findUserFaction(result.data, pid)
-
     // Only swap the map column — re-rendering the whole panel every 4s causes
     // avatars to refetch and the player list to flash. Map veto state is the
     // only thing that actually changes during VOTING.
     const panel  = document.getElementById(PANEL_ID)
     const mapCol = panel && panel.querySelector('.cs-map-col')
-    const newMapHTML = buildMapPool(result.data, faction)
+    const newMapHTML = buildMapPool(result.data)
     if (mapCol && newMapHTML) {
       mapCol.innerHTML = newMapHTML
     } else {
       // Fallback: structure changed (e.g. first time map column appears) —
       // rebuild the whole panel.
-      setPanelContent(buildContent(result.data, pid))
+      setPanelContent(buildContent(result.data))
     }
 
     if (result.data.status === 'VOTING') {
-      injectVetoOverlays(result.data, faction)
+      injectVetoOverlays(result.data)
     } else {
       clearVetoOverlays()
       stopVetoPoll()
@@ -613,14 +590,12 @@
       return
     }
 
-    vetoPlayerID = result.playerID
-    const faction = findUserFaction(result.data, result.playerID)
-    setPanelContent(buildContent(result.data, result.playerID))
+    setPanelContent(buildContent(result.data))
 
     // If veto is live, poll every 4s and inject overlays immediately
     if (result.data.status === 'VOTING') {
       // Small delay so FACEIT's React has time to render the veto cards
-      setTimeout(() => injectVetoOverlays(result.data, faction), 600)
+      setTimeout(() => injectVetoOverlays(result.data), 600)
       vetoPollTimer = setInterval(() => refreshVeto(matchID), 4000)
     }
   }
