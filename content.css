@@ -187,6 +187,36 @@
 .cs-smurf--maybe  { opacity: 0.55; }
 .cs-smurf--likely { opacity: 1; }
 
+/* Win-streak badge */
+.cs-streak {
+  margin-left: 4px;
+  font-size: 10px;
+  font-weight: 800;
+  color: #fb923c;
+  animation: cs-streak-glow 1.6s ease-in-out infinite;
+}
+@keyframes cs-streak-glow {
+  0%, 100% { filter: drop-shadow(0 0 1px rgba(251,146,60,0.4)); }
+  50%      { filter: drop-shadow(0 0 5px rgba(251,146,60,0.9)); }
+}
+
+/* Recent-form W/L dots */
+.cs-form-dots { display: inline-flex; gap: 2px; margin-left: 2px; align-items: center; }
+.cs-form-dot { width: 4px; height: 4px; border-radius: 50%; }
+.cs-form-dot--w { background: #10b981; }
+.cs-form-dot--l { background: #f43f5e; opacity: 0.7; }
+
+/* Party synergy tag (panel) */
+.cs-syn {
+  font-size: 9px;
+  font-weight: 700;
+  color: #c4b5fd;
+  background: rgba(167,139,250,0.12);
+  padding: 1px 4px;
+  border-radius: 3px;
+  margin-left: 2px;
+}
+
 /* Personal prep note */
 .cs-prep {
   display: flex;
@@ -513,6 +543,15 @@
 .cs-inline-smurf { font-size: 10px; flex-shrink: 0; }
 .cs-inline-smurf--maybe  { opacity: 0.5; }
 .cs-inline-smurf--likely { opacity: 1; }
+.cs-inline-streak {
+  font-size: 10px; font-weight: 800; color: #fb923c; flex-shrink: 0;
+  animation: cs-streak-glow 1.6s ease-in-out infinite;
+}
+.cs-inline-syn {
+  font-size: 9px; font-weight: 700; color: #c4b5fd;
+  background: rgba(167,139,250,0.14); padding: 1px 4px; border-radius: 3px;
+  flex-shrink: 0;
+}
 
 /* Error state */
 .cs-panel-error {

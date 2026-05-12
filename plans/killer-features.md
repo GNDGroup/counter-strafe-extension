@@ -32,7 +32,7 @@ ones (instant demo analysis, opponent profiling).
   duo synergy) — `api.faceit.com/stats/v1/` is blocked. Try: realistic
   User-Agent + browser headers in `doRequestInternal`; if still blocked, route
   the internal stats call through the playwright-downloader service.
-- [ ] **#7 Duo / party synergy** — `detectParties` already groups players by
+- [x] **#7 Duo / party synergy** — `detectParties` already groups players by
   shared recent match IDs. Add: keep per-match W/L in `RecentStats`, then for
   each detected party compute "N matches together, X% WR" and surface as
   `party_synergy` in the response. Depends on the CF fix.

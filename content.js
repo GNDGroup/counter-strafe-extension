@@ -548,6 +548,34 @@
     return null
   }
 
+  // ── Recent form / win streak ─────────────────────────────────────────────
+  // `recent_form` from the API is the last ~30 W/L, newest first (true = win).
+  // Returns null if no data, otherwise { streak, hot, recent } where:
+  //   streak = length of the current run of wins from the most recent match
+  //   hot    = streak >= 3 (the "on fire" threshold)
+  //   recent = the first 5 results (for a tiny W/L dot strip)
+  function recentFormInfo(player) {
+    const rf = Array.isArray(player.recent_form) ? player.recent_form : null
+    if (!rf || rf.length === 0) return null
+    let streak = 0
+    for (const w of rf) { if (w) streak++; else break }
+    return { streak, hot: streak >= 3, recent: rf.slice(0, 5) }
+  }
+
+  // Renders a tiny W/L dot row for the last few matches.
+  function formDots(recent) {
+    return recent.map(w => `<span class="cs-form-dot cs-form-dot--${w ? 'w' : 'l'}"></span>`).join('')
+  }
+
+  // ── Party synergy ────────────────────────────────────────────────────────
+  // `party_synergy` from the API is { matches, wins } shared by the party.
+  function partySynergyInfo(player) {
+    const ps = player.party_synergy
+    if (!ps || typeof ps.matches !== 'number' || ps.matches < 3) return null
+    const wr = ps.matches > 0 ? Math.round((ps.wins / ps.matches) * 100) : 0
+    return { matches: ps.matches, wins: ps.wins, wr }
+  }
+
   function buildCopyString(player) {
     const kr = computeLifetimeKR(player)
     const parts = [
@@ -582,6 +610,16 @@
       ? `<span class="cs-inline-smurf cs-inline-smurf--${smurf.level}" title="${escapeHtml('Возможный смурф/буст: ' + smurf.reasons.join(', '))}">🚩</span>`
       : ''
 
+    const form = recentFormInfo(player)
+    const streakBlock = (form && form.hot)
+      ? `<span class="cs-inline-streak" title="${form.streak} побед подряд">🔥${form.streak >= 5 ? form.streak : ''}</span>`
+      : ''
+
+    const syn = partySynergyInfo(player)
+    const synBlock = syn
+      ? `<span class="cs-inline-syn" title="Эта пати: ${syn.matches} матчей вместе, ${syn.wr}% побед">👥${syn.wr}%</span>`
+      : ''
+
     // Map-specific lifetime stats for the map being played
     let mapBlock = ''
     if (currentMap && Array.isArray(player.map_stats)) {
@@ -610,7 +648,7 @@
     return `
       <div class="cs-inline-strip" ${INLINE_STRIP_ATTR}="1">
         <div class="cs-inline-capsule">
-          ${impBlock}${smurfBlock}
+          ${impBlock}${streakBlock}${smurfBlock}${synBlock}
           <span class="cs-inline-stat"><span class="cs-inline-lbl">KD</span> ${kd}</span>
           <span class="cs-inline-stat"><span class="cs-inline-lbl">WR</span> ${wr}</span>
           ${hs ? `<span class="cs-inline-stat"><span class="cs-inline-lbl">HS</span> ${hs}</span>` : ''}
@@ -805,17 +843,32 @@
       ? `<span class="cs-smurf cs-smurf--${smurf.level}" title="${escapeHtml('Возможный смурф/буст: ' + smurf.reasons.join(', '))}">🚩</span>`
       : ''
 
+    const form = recentFormInfo(player)
+    const streakBadge = (form && form.hot)
+      ? `<span class="cs-streak" title="${form.streak} побед подряд">🔥${form.streak >= 5 ? form.streak : ''}</span>`
+      : ''
+    const formDotsHtml = form
+      ? `<span class="cs-form-dots" title="Последние матчи (W/L), новые слева">${formDots(form.recent)}</span>`
+      : ''
+
+    const syn = partySynergyInfo(player)
+    const synTag = syn
+      ? `<span class="cs-syn" title="Эта пати: ${syn.matches} матчей вместе, ${syn.wr}% побед">👥 ${syn.wr}%</span>`
+      : ''
+
     return `
       <div class="cs-player-row ${sideClass}">
         <img class="cs-player-avatar" src="${escapeHtml(avatarSrc)}" alt="" loading="lazy" data-cs-fallback="${AVATAR_PLACEHOLDER}" />
         <div class="cs-player-info">
-          <div class="cs-player-nick">${escapeHtml(player.nickname)}${smurfFlag}</div>
+          <div class="cs-player-nick">${escapeHtml(player.nickname)}${streakBadge}${smurfFlag}</div>
           <div class="cs-player-stats">
             ${impBadge}
             <span class="cs-elo" title="ELO">${elo}</span>
             <span class="cs-skill-dot" style="background:${skillColor(lvl)}" title="Level ${lvl}"></span>
             <span class="cs-stat" title="K/D Ratio">${kdVal} KD</span>
             <span class="cs-stat cs-stat-wr" title="Win Rate">${wrVal}</span>
+            ${formDotsHtml}
+            ${synTag}
           </div>
         </div>
       </div>
