@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "CounterStrafe Analytics",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "Pre-match player analytics from CounterStrafe on FACEIT match rooms",
   "permissions": [
     "storage",
