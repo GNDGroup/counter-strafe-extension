@@ -147,6 +147,10 @@
     // Fallback: if no entities but we have a picked map from voting.map.pick
     const pickedMap = data.map || ''
 
+    // ML win probabilities for faction1, keyed by de_<map>. May be absent if
+    // the ML service was unreachable on the backend.
+    const winProb = data.win_prob || {}
+
     const entries = CS2_MAP_POOL.map(mapName => {
       const nm     = normMap(mapName)
       const entity = entityByMap[nm] || null
@@ -161,6 +165,9 @@
         : 0
       const adv = f1.score - f2.score + sampleBonus
 
+      // ML win probability for faction1 (0..1), if available.
+      const wp = (typeof winProb[mapName] === 'number') ? winProb[mapName] : null
+
       // Veto state from live data
       let vetoStatus  = null // null | "available" | "drop" | "pick"
       let vetoBy      = null // null | "faction1" | "faction2"
@@ -171,15 +178,17 @@
         vetoStatus = 'pick'
       }
 
-      return { map: mapName, nm, f1, f2, adv, vetoStatus, vetoBy }
+      return { map: mapName, nm, f1, f2, adv, wp, vetoStatus, vetoBy }
     })
 
-    // Sort: picks first → available by absolute advantage → banned/dropped last
+    // Sort: picks first → available by how decisive the ML prob is (distance
+    // from 50%), falling back to stat advantage when ML is missing → banned last
+    const decisiveness = e => e.wp !== null ? Math.abs(e.wp - 0.5) * 100 : Math.abs(e.adv)
     entries.sort((a, b) => {
       const order = s => s === 'pick' ? 0 : s === 'available' || !s ? 1 : 2
       const od = order(a.vetoStatus) - order(b.vetoStatus)
       if (od !== 0) return od
-      return Math.abs(b.adv) - Math.abs(a.adv)
+      return decisiveness(b) - decisiveness(a)
     })
 
     const rows = entries.map(e => {
@@ -200,13 +209,6 @@
         badge = '<span class="cs-map-badge cs-map-badge--nodata">?</span>'
       }
 
-      // Advantage bar
-      const clamped = Math.min(Math.max(adv, -50), 50)
-      const barPct  = Math.abs(clamped) / 50 * 48
-      const isPos   = adv >= 0
-      const myWr    = e.f1.score.toFixed(0)
-      const theirWr = e.f2.score.toFixed(0)
-
       // Banned maps: hide bars, just show greyed-out name + badge
       if (e.vetoStatus === 'drop') {
         return `
@@ -217,6 +219,26 @@
             </div>
           </div>
         `
+      }
+
+      // Primary signal: ML win-prob (faction1 perspective). Fall back to the
+      // stat-advantage heuristic when ML is unavailable.
+      let barPct, isPos, mainNum, mainCls, subNum
+      if (e.wp !== null) {
+        const pctF1   = e.wp * 100
+        isPos         = pctF1 >= 50          // faction1 favoured
+        const deltaPct = Math.abs(pctF1 - 50) // 0..50
+        barPct        = (deltaPct / 50) * 48
+        mainNum       = (isPos ? pctF1 : 100 - pctF1).toFixed(0) + '%'
+        mainCls       = isPos ? 'f1' : 'f2'
+        subNum        = (adv >= 0 ? '+' : '') + adv.toFixed(0) // dim stat-adv
+      } else {
+        const clamped = Math.min(Math.max(adv, -50), 50)
+        barPct        = Math.abs(clamped) / 50 * 48
+        isPos         = adv >= 0
+        mainNum       = (adv >= 0 ? '+' : '') + adv.toFixed(0)
+        mainCls       = isPos ? 'f1' : 'f2'
+        subNum        = `${e.f1.score.toFixed(0)}% / ${e.f2.score.toFixed(0)}%`
       }
 
       return `
@@ -230,8 +252,8 @@
               <div class="cs-adv-bar ${isPos ? 'cs-adv-bar--pos' : 'cs-adv-bar--neg'}" style="width:${barPct}%"></div>
             </div>
             <div class="cs-map-wr-nums">
-              <span class="cs-map-wr cs-map-wr--num cs-map-wr--${isPos ? 'f1' : 'f2'}">${adv >= 0 ? '+' : ''}${adv.toFixed(0)}</span>
-              <span class="cs-map-wr cs-map-wr--dim">${myWr}%&hairsp;/&hairsp;${theirWr}%</span>
+              <span class="cs-map-wr cs-map-wr--num cs-map-wr--${mainCls}">${mainNum}</span>
+              <span class="cs-map-wr cs-map-wr--dim">${subNum}</span>
             </div>
           </div>
         </div>
@@ -241,9 +263,37 @@
     const liveIndicator = (hasLiveVeto && data.status === 'VOTING')
       ? '<span class="cs-live-dot"></span>'
       : ''
+    const mlBadge = Object.keys(winProb).length > 0
+      ? '<span class="cs-ml-tag" title="Прогноз ML-модели CounterStrafe">ML</span>'
+      : ''
+
+    // Live veto coach: when voting is in progress, lead with a short
+    // recommendation derived from the ML probabilities of the still-available
+    // maps — what to ban (most lopsided against either side) and what's safest.
+    let vetoAdvice = ''
+    if (data.status === 'VOTING') {
+      const avail = entries.filter(e => e.vetoStatus === 'available' || !e.vetoStatus)
+      const withWp = avail.filter(e => e.wp !== null)
+      if (withWp.length >= 2) {
+        // Map most decisive against faction1 / against faction2.
+        const sortedByF1 = [...withWp].sort((a, b) => a.wp - b.wp) // ascending: worst-for-f1 first
+        const worstForF1 = sortedByF1[0]      // f2's strong map
+        const worstForF2 = sortedByF1[sortedByF1.length - 1] // f1's strong map
+        const banForF1 = worstForF1.map.replace('de_', '').toUpperCase()
+        const banForF2 = worstForF2.map.replace('de_', '').toUpperCase()
+        vetoAdvice = `
+          <div class="cs-veto-advice">
+            <span class="cs-veto-advice-lbl">СОВЕТ ПО ВЕТО</span>
+            <span class="cs-veto-advice-line"><b class="cs-f1">T1</b> бань <b>${banForF1}</b> (${(worstForF1.wp * 100).toFixed(0)}%)</span>
+            <span class="cs-veto-advice-line"><b class="cs-f2">T2</b> бань <b>${banForF2}</b> (${(100 - worstForF2.wp * 100).toFixed(0)}%)</span>
+          </div>
+        `
+      }
+    }
 
     return `
-      <div class="cs-section-label">КАРТЫ ${liveIndicator}</div>
+      <div class="cs-section-label">КАРТЫ ${mlBadge}${liveIndicator}</div>
+      ${vetoAdvice}
       ${rows}
     `
   }
@@ -297,6 +347,7 @@
 
     const f1Players = data.teams?.faction1?.players || []
     const f2Players = data.teams?.faction2?.players || []
+    const winProb   = data.win_prob || {}
 
     for (const entity of data.voting.map.entities) {
       if (!entity.class_name) continue
@@ -310,15 +361,20 @@
 
       if (entity.status !== 'available') continue
 
-      const f1  = teamMapScore(f1Players, entity.class_name)
-      const f2  = teamMapScore(f2Players, entity.class_name)
-      const adv = f1.score - f2.score
-
-      // Neutral perspective: highlight which faction has the edge, don't
-      // tell anyone what to pick or ban. Outline + numeric advantage badge.
+      // Prefer the ML win-probability; fall back to the stat-advantage heuristic.
       let type = null, text = ''
-      if      (adv >=  12) { type = 'f1'; text = `T1 +${adv.toFixed(0)}` }
-      else if (adv <= -12) { type = 'f2'; text = `T2 +${Math.abs(adv).toFixed(0)}` }
+      const wp = winProb[entity.class_name]
+      if (typeof wp === 'number') {
+        const pctF1 = wp * 100
+        if      (pctF1 >= 58) { type = 'f1'; text = `T1 ${pctF1.toFixed(0)}%` }
+        else if (pctF1 <= 42) { type = 'f2'; text = `T2 ${(100 - pctF1).toFixed(0)}%` }
+      } else {
+        const f1  = teamMapScore(f1Players, entity.class_name)
+        const f2  = teamMapScore(f2Players, entity.class_name)
+        const adv = f1.score - f2.score
+        if      (adv >=  12) { type = 'f1'; text = `T1 +${adv.toFixed(0)}` }
+        else if (adv <= -12) { type = 'f2'; text = `T2 +${Math.abs(adv).toFixed(0)}` }
+      }
 
       const card = findFaceitMapCard(entity.class_name)
       if (!card) continue
@@ -421,6 +477,77 @@
     return (kr * 22).toFixed(1)
   }
 
+  // ── Lite impact score ────────────────────────────────────────────────────
+  // Demo-free proxy for "how much this player contributes to winning". The real
+  // CounterStrafe rating (RSI/WPA) needs round-by-round demo data; this composite
+  // approximates it from FACEIT lifetime numbers. 0–100, 50 ≈ average.
+  //   WR  40%  — directly measures winning (the whole point)
+  //   KD  25%  — frag impact
+  //   KR  20%  — kills per round (consistency, less luck than KD)
+  //   HS  15%  — raw mechanical skill
+  // Returns { score, padder } where padder=true flags a fragger whose KD is
+  // strong but whose winrate doesn't follow — classic stat-padder pattern.
+  function computeImpact(player) {
+    const wr = parseFloat(player.win_rate)  || 0
+    const kd = parseFloat(player.kd_ratio)  || 0
+    const hs = parseFloat(player.hs_percent) || 0
+    const kr = computeLifetimeKR(player) || 0
+    if (!wr && !kd) return null
+
+    const clamp01 = x => Math.min(Math.max(x, 0), 1)
+    // Normalisations (0..1):
+    //   WR  44% → 0,  50% → 0.5,  56% → 1
+    //   KD  0.8 → 0,  1.0 → 0.5,  1.3 → 1
+    //   KR  0.55→ 0,  0.7 → 0.5,  0.9 → 1
+    //   HS  30  → 0,  45  → 0.5,  60  → 1
+    const wrN = clamp01((wr - 44) / 12)
+    const kdN = clamp01((kd - 0.8) / 0.5)
+    const krN = kr > 0 ? clamp01((kr - 0.55) / 0.35) : kdN
+    const hsN = clamp01((hs - 30) / 30)
+
+    const score = Math.round((wrN * 0.40 + kdN * 0.25 + krN * 0.20 + hsN * 0.15) * 100)
+
+    // Stat-padder: solid fragging (KD ≥ 1.10) but the team doesn't win with them
+    // (WR ≤ 48%) — KD is misleading you about their value.
+    const padder = kd >= 1.10 && wr <= 48
+
+    return { score, padder }
+  }
+
+  function impactTier(score) {
+    if (score >= 65) return 'hi'
+    if (score >= 50) return 'mid'
+    if (score >= 38) return 'lo'
+    return 'vlo'
+  }
+
+  // ── Smurf / booster detection ────────────────────────────────────────────
+  // Pure heuristic on FACEIT lifetime numbers — no demos. The signature: an
+  // account with few games but a rating that doesn't match a fresh account
+  // (high ELO / level), often with an unusually high HS%. Returns null (clean)
+  // or { level: 'maybe' | 'likely', reasons: string[] }.
+  function detectSmurf(player) {
+    const matches = parseInt(player.matches)      || 0
+    const elo     = parseInt(player.elo)          || 0
+    const lvl     = parseInt(player.skill_level)  || 0
+    const hs      = parseFloat(player.hs_percent) || 0
+    const kd      = parseFloat(player.kd_ratio)   || 0
+    if (matches <= 0) return null
+
+    let score = 0
+    const reasons = []
+    if (matches < 100 && elo >= 1700) { score += 2; reasons.push(`${matches} матчей, но ${elo} ELO`) }
+    else if (matches < 250 && elo >= 2000) { score += 2; reasons.push(`${matches} матчей, ${elo} ELO`) }
+    else if (matches < 450 && elo >= 2300) { score += 1; reasons.push(`всего ${matches} матчей при ${elo} ELO`) }
+    if (lvl >= 9 && matches < 300) { score += 1; reasons.push(`lvl ${lvl} за <300 игр`) }
+    if (hs >= 55 && matches < 500) { score += 1; reasons.push(`HS ${hs.toFixed(0)}%`) }
+    if (kd >= 1.4 && matches < 500) { score += 1; reasons.push(`KD ${kd.toFixed(2)}`) }
+
+    if (score >= 3) return { level: 'likely', reasons }
+    if (score >= 2) return { level: 'maybe',  reasons }
+    return null
+  }
+
   function buildCopyString(player) {
     const kr = computeLifetimeKR(player)
     const parts = [
@@ -445,6 +572,16 @@
     const avg = fmtAvg(krRaw)
     const matches = player.matches ? fmtMatches(player.matches) : null
 
+    const imp = computeImpact(player)
+    const impBlock = imp
+      ? `<span class="cs-inline-imp cs-inline-imp--${impactTier(imp.score)}" title="Impact score — вклад в победу (0–100)">${imp.score}${imp.padder ? ' ⚠' : ''}</span>`
+      : ''
+
+    const smurf = detectSmurf(player)
+    const smurfBlock = smurf
+      ? `<span class="cs-inline-smurf cs-inline-smurf--${smurf.level}" title="${escapeHtml('Возможный смурф/буст: ' + smurf.reasons.join(', '))}">🚩</span>`
+      : ''
+
     // Map-specific lifetime stats for the map being played
     let mapBlock = ''
     if (currentMap && Array.isArray(player.map_stats)) {
@@ -466,14 +603,18 @@
       </button>
     `
 
+    // AVG (≈KR×22) is shown in the copy string + title only — kept out of the
+    // strip itself so all the real stats + impact pill fit on one line.
+    void avg
+
     return `
       <div class="cs-inline-strip" ${INLINE_STRIP_ATTR}="1">
         <div class="cs-inline-capsule">
+          ${impBlock}${smurfBlock}
           <span class="cs-inline-stat"><span class="cs-inline-lbl">KD</span> ${kd}</span>
           <span class="cs-inline-stat"><span class="cs-inline-lbl">WR</span> ${wr}</span>
           ${hs ? `<span class="cs-inline-stat"><span class="cs-inline-lbl">HS</span> ${hs}</span>` : ''}
           ${kr ? `<span class="cs-inline-stat"><span class="cs-inline-lbl">KR</span> ${kr}</span>` : ''}
-          ${avg ? `<span class="cs-inline-stat"><span class="cs-inline-lbl">AVG</span> ${avg}</span>` : ''}
           ${matches ? `<span class="cs-inline-stat"><span class="cs-inline-lbl">M</span> ${matches}</span>` : ''}
           ${copyBtn}
           ${mapBlock}
@@ -482,22 +623,39 @@
     `
   }
 
-  // Delegated click handler for copy buttons — written once per page load.
+  // Delegated click handler for copy / share buttons — written once per page.
   if (!window.__csCopyHandlerInstalled) {
     window.__csCopyHandlerInstalled = true
     document.addEventListener('click', (ev) => {
-      const btn = ev.target.closest('.cs-inline-copy')
-      if (!btn) return
-      ev.preventDefault()
-      ev.stopPropagation()
-      const txt = btn.getAttribute('data-cs-copy') || ''
-      navigator.clipboard.writeText(txt).then(
-        () => {
-          btn.classList.add('cs-inline-copy--copied')
-          setTimeout(() => btn.classList.remove('cs-inline-copy--copied'), 1500)
-        },
-        () => { /* clipboard write failed — silently ignore */ },
-      )
+      const copyBtn = ev.target.closest('.cs-inline-copy')
+      if (copyBtn) {
+        ev.preventDefault()
+        ev.stopPropagation()
+        const txt = copyBtn.getAttribute('data-cs-copy') || ''
+        navigator.clipboard.writeText(txt).then(
+          () => {
+            copyBtn.classList.add('cs-inline-copy--copied')
+            setTimeout(() => copyBtn.classList.remove('cs-inline-copy--copied'), 1500)
+          },
+          () => { /* ignore */ },
+        )
+        return
+      }
+      const shareBtn = ev.target.closest('.cs-link--share')
+      if (shareBtn) {
+        ev.preventDefault()
+        ev.stopPropagation()
+        const mid = shareBtn.getAttribute('data-cs-share') || ''
+        const url = `https://counterstrafe.pro/match/${mid}/analytics`
+        navigator.clipboard.writeText(url).then(
+          () => {
+            const orig = shareBtn.textContent
+            shareBtn.textContent = '✓ Ссылка скопирована'
+            setTimeout(() => { shareBtn.textContent = orig }, 1600)
+          },
+          () => { /* ignore */ },
+        )
+      }
     }, true)
   }
 
@@ -636,12 +794,24 @@
     const wrVal = fmtWR(player.win_rate)
     const elo = player.elo || '?'
     const avatarSrc = player.avatar || AVATAR_PLACEHOLDER
+
+    const imp = computeImpact(player)
+    const impBadge = imp
+      ? `<span class="cs-imp cs-imp--${impactTier(imp.score)}" title="Impact score (вклад в победу)">${imp.score}${imp.padder ? '<span class="cs-imp-warn" title="Высокий KD, но команда не выигрывает — возможный стат-паддер">⚠</span>' : ''}</span>`
+      : ''
+
+    const smurf = detectSmurf(player)
+    const smurfFlag = smurf
+      ? `<span class="cs-smurf cs-smurf--${smurf.level}" title="${escapeHtml('Возможный смурф/буст: ' + smurf.reasons.join(', '))}">🚩</span>`
+      : ''
+
     return `
       <div class="cs-player-row ${sideClass}">
         <img class="cs-player-avatar" src="${escapeHtml(avatarSrc)}" alt="" loading="lazy" data-cs-fallback="${AVATAR_PLACEHOLDER}" />
         <div class="cs-player-info">
-          <div class="cs-player-nick">${escapeHtml(player.nickname)}</div>
+          <div class="cs-player-nick">${escapeHtml(player.nickname)}${smurfFlag}</div>
           <div class="cs-player-stats">
+            ${impBadge}
             <span class="cs-elo" title="ELO">${elo}</span>
             <span class="cs-skill-dot" style="background:${skillColor(lvl)}" title="Level ${lvl}"></span>
             <span class="cs-stat" title="K/D Ratio">${kdVal} KD</span>
@@ -678,23 +848,74 @@
     `
   }
 
-  function buildContent(data) {
+  // Find which faction a player_id belongs to (for the personal prep line).
+  function factionOf(data, playerID) {
+    if (!playerID) return null
+    if ((data.teams.faction1.players || []).some(p => p.player_id === playerID)) return 'faction1'
+    if ((data.teams.faction2.players || []).some(p => p.player_id === playerID)) return 'faction2'
+    return null
+  }
+
+  // A short personal prep note for the logged-in player: which team they're on,
+  // their best & worst map by lifetime KD (out of the maps still in play).
+  function buildPrepNote(data, playerID) {
+    const fac = factionOf(data, playerID)
+    if (!fac) return ''
+    const me = (data.teams[fac].players || []).find(p => p.player_id === playerID)
+    if (!me || !Array.isArray(me.map_stats) || me.map_stats.length === 0) return ''
+
+    // Only consider maps that aren't banned.
+    const banned = new Set(
+      (data.voting?.map?.entities || [])
+        .filter(e => e.status === 'drop' && e.class_name)
+        .map(e => normMap(e.class_name)),
+    )
+    const usable = me.map_stats
+      .filter(ms => parseFloat(ms.win_rate) > 0 && (parseInt(ms.matches) || 0) >= 5 && !banned.has(normMap(ms.map)))
+      .map(ms => ({ map: ms.map, kd: parseFloat(ms.kd_ratio) || 0, wr: parseFloat(ms.win_rate) || 0 }))
+    if (usable.length < 2) return ''
+
+    usable.sort((a, b) => b.kd - a.kd)
+    const best = usable[0]
+    const worst = usable[usable.length - 1]
+    const teamName = escapeHtml(data.teams[fac].name || (fac === 'faction1' ? 'Team 1' : 'Team 2'))
+    return `
+      <div class="cs-prep">
+        <span class="cs-prep-lbl">ТЫ В ${teamName}</span>
+        <span class="cs-prep-item">сильная: <b>${escapeHtml(best.map)}</b> ${best.kd.toFixed(2)} KD</span>
+        <span class="cs-prep-item cs-prep-item--weak">слабая: <b>${escapeHtml(worst.map)}</b> ${worst.kd.toFixed(2)} KD</span>
+      </div>
+    `
+  }
+
+  function buildContent(data, playerID) {
     const t1 = buildTeam(data.teams.faction1, 'faction1')
     const t2 = buildTeam(data.teams.faction2, 'faction2')
     const mapPool = buildMapPool(data)
     const centerCol = mapPool
       ? `<div class="cs-map-col">${mapPool}</div>`
       : `<div class="cs-col-divider"></div>`
+
+    const matchID = encodeURIComponent(data.match_id)
+    const prep = buildPrepNote(data, playerID)
+    // Grenade lineups link — only useful once a map is locked in.
+    const pickedMap = data.map || (data.voting?.map?.entities || []).find(e => e.status === 'pick')?.class_name || ''
+    const nadeLink = pickedMap
+      ? `<a href="https://counterstrafe.pro/match/${matchID}/grenades" target="_blank" rel="noopener" class="cs-link cs-link--nade">💣 Раскидки на ${escapeHtml(pickedMap.replace(/^de_/i, '').toUpperCase())}</a>`
+      : ''
+
     return `
       <div class="cs-panel-body">
         ${t1}
         ${centerCol}
         ${t2}
       </div>
+      ${prep}
       <div class="cs-footer">
-        <a href="https://counterstrafe.pro/match/${encodeURIComponent(data.match_id)}/analytics" target="_blank" rel="noopener" class="cs-link">
-          Открыть аналитику →
-        </a>
+        ${nadeLink}
+        <a href="https://counterstrafe.pro/match/${matchID}/coach" target="_blank" rel="noopener" class="cs-link cs-link--coach">🧠 AI-разбор</a>
+        <button class="cs-link cs-link--share" type="button" data-cs-share="${matchID}" title="Скопировать ссылку на разбор матча">🔗 Поделиться</button>
+        <a href="https://counterstrafe.pro/match/${matchID}/analytics" target="_blank" rel="noopener" class="cs-link">Открыть аналитику →</a>
       </div>
     `
   }
@@ -781,6 +1002,8 @@
     }
   }
 
+  let lastPlayerID = null  // remembered from the initial fetch
+
   async function refreshVeto(matchID) {
     if (currentMatchID !== matchID) { stopVetoPoll(); return }
 
@@ -789,7 +1012,6 @@
     if (!result || result.error || !result.data) return // silent — keep showing last good state
     if (!result.data.teams) return
 
-    // Keep playerID from initial load (no need to re-auth every 4s)
     // Only swap the map column — re-rendering the whole panel every 4s causes
     // avatars to refetch and the player list to flash. Map veto state is the
     // only thing that actually changes during VOTING.
@@ -801,7 +1023,7 @@
     } else {
       // Fallback: structure changed (e.g. first time map column appears) —
       // rebuild the whole panel.
-      setPanelContent(buildContent(result.data))
+      setPanelContent(buildContent(result.data, lastPlayerID ?? result.playerID))
     }
 
     if (result.data.status === 'VOTING') {
@@ -845,7 +1067,8 @@
       return
     }
 
-    if (panelEnabled) setPanelContent(buildContent(result.data))
+    lastPlayerID = result.playerID ?? null
+    if (panelEnabled) setPanelContent(buildContent(result.data, lastPlayerID))
     if (inlineEnabled) injectInlineStats(result.data)
 
     // If veto is live, poll every 4s and inject overlays immediately

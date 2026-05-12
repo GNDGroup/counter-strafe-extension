@@ -165,6 +165,69 @@
 .cs-stat { font-size: 10px; color: #94a3b8; }
 .cs-stat-wr { color: #10b981; }
 
+/* Impact score pill (panel player row) */
+.cs-imp {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 1px 5px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+}
+.cs-imp--hi   { color: #10b981; background: rgba(16,185,129,0.14); }
+.cs-imp--mid  { color: #94a3b8; background: rgba(148,163,184,0.12); }
+.cs-imp--lo   { color: #f59e0b; background: rgba(245,158,11,0.14); }
+.cs-imp--vlo  { color: #f43f5e; background: rgba(244,63,94,0.14); }
+.cs-imp-warn  { font-size: 8px; opacity: 0.9; }
+
+/* Smurf flag */
+.cs-smurf { margin-left: 4px; font-size: 10px; filter: grayscale(0.2); }
+.cs-smurf--maybe  { opacity: 0.55; }
+.cs-smurf--likely { opacity: 1; }
+
+/* Personal prep note */
+.cs-prep {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 4px 12px;
+  font-size: 10px;
+  color: #94a3b8;
+  background: rgba(59,130,246,0.05);
+  border-top: 1px solid rgba(255,255,255,0.05);
+}
+.cs-prep-lbl {
+  font-size: 8px; font-weight: 800; letter-spacing: 0.1em;
+  color: #475569; text-transform: uppercase;
+}
+.cs-prep-item b { color: #cbd5e1; }
+.cs-prep-item--weak { color: #f59e0b; }
+.cs-prep-item--weak b { color: #f59e0b; }
+
+/* Live veto advice banner (inside the map column) */
+.cs-veto-advice {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 6px 6px;
+  padding: 5px 8px;
+  background: rgba(167,139,250,0.08);
+  border: 1px solid rgba(167,139,250,0.2);
+  border-radius: 6px;
+  font-size: 10px;
+  color: #cbd5e1;
+}
+.cs-veto-advice-lbl {
+  font-size: 8px; font-weight: 800; letter-spacing: 0.1em;
+  color: #a78bfa; text-transform: uppercase;
+}
+.cs-veto-advice-line b { font-weight: 700; }
+.cs-veto-advice-line .cs-f1 { color: #5a9fd4; }
+.cs-veto-advice-line .cs-f2 { color: #fcbf49; }
+
 /* Center divider between teams */
 .cs-col-divider {
   width: 1px;
@@ -205,6 +268,21 @@
   color: #475569;
   text-transform: uppercase;
   padding: 0 10px 4px;
+}
+
+/* "ML" tag next to the КАРТЫ label when win-prob predictions are present */
+.cs-ml-tag {
+  display: inline-block;
+  margin-left: 5px;
+  padding: 1px 4px;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #a78bfa;
+  background: rgba(167, 139, 250, 0.12);
+  border: 1px solid rgba(167, 139, 250, 0.35);
+  border-radius: 3px;
+  vertical-align: middle;
 }
 
 /* Map header */
@@ -394,6 +472,9 @@
 .cs-footer {
   display: flex;
   justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 14px;
   padding: 6px 10px;
   border-top: 1px solid rgba(255,255,255,0.06);
 }
@@ -403,8 +484,35 @@
   text-decoration: none;
   font-weight: 600;
   transition: color 150ms ease;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  font-family: inherit;
 }
 .cs-link:hover { color: #60a5fa; }
+.cs-link--nade  { color: #f59e0b; }
+.cs-link--nade:hover { color: #fbbf24; }
+.cs-link--coach { color: #a78bfa; }
+.cs-link--coach:hover { color: #c4b5fd; }
+.cs-link--share { color: #94a3b8; }
+.cs-link--share:hover { color: #cbd5e1; }
+
+/* Inline strip — impact + smurf */
+.cs-inline-imp {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 1px 4px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.cs-inline-imp--hi   { color: #10b981; background: rgba(16,185,129,0.16); }
+.cs-inline-imp--mid  { color: #cbd5e1; background: rgba(148,163,184,0.14); }
+.cs-inline-imp--lo   { color: #f59e0b; background: rgba(245,158,11,0.16); }
+.cs-inline-imp--vlo  { color: #f43f5e; background: rgba(244,63,94,0.16); }
+.cs-inline-smurf { font-size: 10px; flex-shrink: 0; }
+.cs-inline-smurf--maybe  { opacity: 0.5; }
+.cs-inline-smurf--likely { opacity: 1; }
 
 /* Error state */
 .cs-panel-error {
