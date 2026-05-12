@@ -424,9 +424,13 @@
       const r = curr.getBoundingClientRect()
       const cls = (curr.className || '').toString()
       const isRowShaped = r.width >= 200 && r.height >= 40 && r.height <= 200
+      // Never anchor onto a table cell/row — inserting a <div> after a <tr>
+      // produces invalid HTML and renders outside the table. (FACEIT's
+      // scoreboard table is one such case; the player-widget cards are divs.)
+      const isTableEl = /^(TR|TD|TH|TBODY|THEAD|TABLE)$/.test(curr.tagName)
       // Hint: FACEIT class names that strongly imply a row container.
       const isLikelyRow = /PlayerCard|AccoladeCard|Row|styles__Row/i.test(cls)
-      if (isRowShaped && (isLikelyRow || !candidate)) {
+      if (isRowShaped && !isTableEl && (isLikelyRow || !candidate)) {
         candidate = curr
       }
       // Stop early if we've gone past anything that could plausibly be a card.
@@ -586,7 +590,7 @@
     if (kr)                parts.push(`KR ${kr.toFixed(2)}`)
     const avg = fmtAvg(kr)
     if (avg)               parts.push(`AVG ${avg}`)
-    if (player.matches)    parts.push(`${fmtMatches(player.matches)} матчей`)
+    if (player.matches)    parts.push(`${fmtMatches(player.matches)} matches`)
     const nick = (player.nickname || '').toString()
     return nick ? `${nick} — ${parts.join(' · ')}` : parts.join(' · ')
   }
@@ -979,6 +983,7 @@
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;')
   }
 
   // ── Panel management ──────────────────────────────────────────────────────
